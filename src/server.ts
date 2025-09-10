@@ -4,44 +4,50 @@ import * as http from "http";
 import path from "path";
 import { Server as SocketServer } from "socket.io";
 
+// --- This line MUST be at the top ---
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
-// (Sanity Check logs can be removed if you've confirmed your .env works)
 
 import { app } from "./app";
 import { updateOrderStatusForSocket } from "./api/controllers/orderController";
 
 process.on("uncaughtException", (err: Error) => {
-  /* ... */
+  console.error(
+    "UNCAUGHT EXCEPTION! 💥 Shutting down...",
+    err.name,
+    err.message
+  );
+  process.exit(1);
 });
 
 const server = http.createServer(app);
-
 const io = new SocketServer(server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
+
 app.set("socketio", io);
 io.on("connection", (socket) => {
-  /* ... */
+  // Socket event listeners go here...
 });
 
-// --- FIX #1: MONGOOSE CONNECTION ---
-// Provide an empty options object as the second argument to satisfy the types.
+const DB_URL = process.env.DATABASE_URL;
+if (!DB_URL) {
+  throw new Error("FATAL ERROR: DATABASE_URL is not defined in .env file.");
+}
+
+// --- THIS IS THE CORRECTED MONGOOSE CONNECTION ---
 mongoose
-  .connect(process.env.DATABASE_URL!, {})
+  .connect(DB_URL, {})
   .then(() => {
     console.log("✅ DB connection successful!");
   })
   .catch((err) => {
-    console.error("MongoDB connection error:", err);
-    process.exit(1);
+    console.error("FATAL ERROR: MongoDB connection failed:", err);
+    process.exit(1); // Exit if the database connection fails
   });
-// Note: We also simplified the DB_URL logic and added better error handling.
 
 const port = process.env.PORT || 3000;
 
-// --- FIX #2: SERVER LISTEN METHOD ---
-// The http.Server.listen method has multiple signatures. The object-based
-// signature is the most explicit and avoids the type errors you were seeing.
+// --- THIS IS THE CORRECTED SERVER LISTEN METHOD ---
 const runningServer = server.listen(
   {
     host: "0.0.0.0", // Listen on all network interfaces
@@ -51,7 +57,6 @@ const runningServer = server.listen(
     console.log(`🚀 App running on port ${port}...`);
   }
 );
-// --- END OF FIX #2 ---
 
 process.on("unhandledRejection", (err: Error) => {
   console.error(
